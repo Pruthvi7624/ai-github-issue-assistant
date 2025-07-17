@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seedling Labs: GitHub Issue Assistant</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to top to prevent jumping on content load */
+            min-height: 100vh;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-xl */
+            padding: 2.5rem; /* p-10 */
+            width: 100%;
+            max-width: 48rem; /* max-w-2xl */
+            margin-top: 2rem;
+        }
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            font-weight: 600; /* font-semibold */
+            color: #374151; /* text-gray-700 */
+            margin-bottom: 0.5rem;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 0.75rem 1rem; /* py-3 px-4 */
+            border: 1px solid #d1d5db; /* border-gray-300 */
+            border-radius: 0.5rem; /* rounded-lg */
+            font-size: 1rem;
+            color: #1f2937; /* text-gray-900 */
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #2563eb; /* border-blue-600 */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5); /* ring-2 ring-blue-500/50 */
+        }
+        button {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0.75rem 1.5rem; /* py-3 px-6 */
+            border-radius: 0.5rem; /* rounded-lg */
+            background-color: #2563eb; /* bg-blue-600 */
+            color: #ffffff; /* text-white */
+            font-weight: 600; /* font-semibold */
+            transition: background-color 0.2s ease-in-out;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #1d4ed8; /* bg-blue-700 */
+        }
+        button:disabled {
+            background-color: #93c5fd; /* bg-blue-300 */
+            cursor: not-allowed;
+        }
+        .loading-indicator {
+            display: none; /* Hidden by default */
+            margin-top: 1.5rem;
+            text-align: center;
+            color: #4b5563; /* text-gray-600 */
+            font-style: italic;
+        }
+        .error-message {
+            display: none; /* Hidden by default */
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: #fee2e2; /* bg-red-100 */
+            border: 1px solid #ef4444; /* border-red-500 */
+            color: #b91c1c; /* text-red-700 */
+            border-radius: 0.5rem;
+        }
+        .output-section {
+            display: none; /* Hidden by default */
+            margin-top: 2rem;
+            border-top: 1px solid #e5e7eb; /* border-t border-gray-200 */
+            padding-top: 2rem;
+        }
+        .output-section h2 {
+            font-size: 1.5rem; /* text-2xl */
+            font-weight: 700; /* font-bold */
+            color: #1f2937; /* text-gray-900 */
+            margin-bottom: 1.5rem;
+        }
+        .output-item {
+            margin-bottom: 1rem;
+        }
+        .output-item strong {
+            color: #374151; /* text-gray-700 */
+        }
+        .output-item pre {
+            background-color: #f9fafb; /* bg-gray-50 */
+            border: 1px solid #e5e7eb; /* border-gray-200 */
+            border-radius: 0.5rem;
+            padding: 1rem;
+            white-space: pre-wrap; /* Ensures long lines wrap */
+            word-wrap: break-word; /* Ensures long words break */
+        }
+        .output-item ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center text-gray-900 mb-8">AI-Powered GitHub Issue Assistant</h1>
+
+        <div class="input-group">
+            <label for="repoUrl">GitHub Repository URL</label>
+            <input type="text" id="repoUrl" placeholder="e.g., https://github.com/facebook/react" value="https://github.com/facebook/react">
+        </div>
+
+        <div class="input-group">
+            <label for="issueNumber">Issue Number</label>
+            <input type="number" id="issueNumber" placeholder="e.g., 28860" value="28860">
+        </div>
+
+        <button id="analyzeButton">Analyze Issue</button>
+
+        <div id="loadingIndicator" class="loading-indicator">
+            Analyzing issue with AI... This might take a moment.
+        </div>
+
+        <div id="errorMessage" class="error-message">
+            <!-- Error messages will be displayed here -->
+        </div>
+
+        <div id="outputSection" class="output-section">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">AI Analysis Result</h2>
+            <div class="output-item">
+                <strong>Summary:</strong> <span id="outputSummary"></span>
+            </div>
+            <div class="output-item">
+                <strong>Type:</strong> <span id="outputType"></span>
+            </div>
+            <div class="output-item">
+                <strong>Priority Score:</strong> <span id="outputPriorityScore"></span>
+            </div>
+            <div class="output-item">
+                <strong>Suggested Labels:</strong> <span id="outputSuggestedLabels"></span>
+            </div>
+            <div class="output-item">
+                <strong>Potential Impact:</strong> <span id="outputPotentialImpact"></span>
+            </div>
+            <div class="mt-6">
+                <button id="copyJsonButton" class="bg-gray-200 text-gray-800 hover:bg-gray-300">Copy Raw JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for messages -->
+    <div id="messageModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <p id="modalMessage"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Global variables for Firebase config and App ID
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const repoUrlInput = document.getElementById('repoUrl');
+        const issueNumberInput = document.getElementById('issueNumber');
+        const analyzeButton = document.getElementById('analyzeButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorMessageDiv = document.getElementById('errorMessage');
+        const outputSection = document.getElementById('outputSection');
+        const outputSummary = document.getElementById('outputSummary');
+        const outputType = document.getElementById('outputType');
+        const outputPriorityScore = document.getElementById('outputPriorityScore');
+        const outputSuggestedLabels = document.getElementById('outputSuggestedLabels');
+        const outputPotentialImpact = document.getElementById('outputPotentialImpact');
+        const copyJsonButton = document.getElementById('copyJsonButton');
+
+        // Modal elements
+        const messageModal = document.getElementById('messageModal');
+        const modalMessage = document.getElementById('modalMessage');
+        const closeButton = document.querySelector('.close-button');
+
+        let rawJsonOutput = {}; // To store the raw JSON for copying
+
+        // Function to show modal message
+        function showModal(message) {
+            modalMessage.textContent = message;
+            messageModal.style.display = 'flex'; // Use flex to center content
+        }
+
+        // Function to hide modal message
+        function hideModal() {
+            messageModal.style.display = 'none';
+        }
+
+        // Close modal when close button is clicked
+        closeButton.onclick = hideModal;
+
+        // Close modal when clicking outside of the modal content
+        window.onclick = function(event) {
+            if (event.target == messageModal) {
+                hideModal();
+            }
+        };
+
+        // Function to display error message
+        function displayError(message) {
+            errorMessageDiv.textContent = message;
+            errorMessageDiv.style.display = 'block';
+        }
+
+        // Function to clear error message
+        function clearError() {
+            errorMessageDiv.textContent = '';
+            errorMessageDiv.style.display = 'none';
+        }
+
+        // Function to reset output display
+        function clearOutput() {
+            outputSection.style.display = 'none';
+            outputSummary.textContent = '';
+            outputType.textContent = '';
+            outputPriorityScore.textContent = '';
+            outputSuggestedLabels.textContent = '';
+            outputPotentialImpact.textContent = '';
+            rawJsonOutput = {};
+        }
+
+        analyzeButton.addEventListener('click', async () => {
+            const repoUrl = repoUrlInput.value.trim();
+            const issueNumber = issueNumberInput.value.trim();
+
+            clearError();
+            clearOutput();
+            loadingIndicator.style.display = 'block';
+            analyzeButton.disabled = true;
+
+            if (!repoUrl || !issueNumber) {
+                displayError('Please enter both GitHub Repository URL and Issue Number.');
+                loadingIndicator.style.display = 'none';
+                analyzeButton.disabled = false;
+                return;
+            }
+
+            // Extract owner and repo name from URL
+            const urlParts = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+            if (!urlParts || urlParts.length < 3) {
+                displayError('Invalid GitHub Repository URL. Please use a format like https://github.com/owner/repo.');
+                loadingIndicator.style.display = 'none';
+                analyzeButton.disabled = false;
+                return;
+            }
+            const owner = urlParts[1];
+            const repo = urlParts[2];
+
+            let issueData;
+            let commentsData;
+
+            try {
+                // Fetch issue details
+                const issueResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`);
+                if (!issueResponse.ok) {
+                    if (issueResponse.status === 404) {
+                        throw new Error(`Issue #${issueNumber} not found in ${owner}/${repo}.`);
+                    } else if (issueResponse.status === 403) {
+                        throw new Error('GitHub API rate limit exceeded or access denied. Please try again later.');
+                    } else {
+                        throw new Error(`Failed to fetch issue details: ${issueResponse.statusText}`);
+                    }
+                }
+                issueData = await issueResponse.json();
+
+                // Fetch issue comments
+                const commentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`);
+                if (!commentsResponse.ok) {
+                    // Even if comments fail, we can still proceed with issue body
+                    console.warn(`Failed to fetch comments: ${commentsResponse.statusText}`);
+                    commentsData = [];
+                } else {
+                    commentsData = await commentsResponse.json();
+                }
+
+                const issueTitle = issueData.title;
+                const issueBody = issueData.body || 'No body provided.';
+                const issueComments = commentsData.map(comment => comment.body).join('\n\n') || 'No comments.';
+
+                const prompt = `Analyze the following GitHub issue and provide a structured summary in JSON format.
+                
+                Issue Title: "${issueTitle}"
+                
+                Issue Body:
+                "${issueBody}"
+                
+                Issue Comments:
+                "${issueComments}"
+                
+                Your response MUST be a valid JSON object.
+                The JSON object MUST have the following keys and value types:
+                - "summary": A string, a one-sentence summary of the user's problem or request.
+                - "type": A string, classify the issue as one of the following: "bug", "feature_request", "documentation", "question", or "other".
+                - "priority_score": A string, a score from 1 (low) to 5 (critical), with a brief justification for the score. For example: "3 (Medium) - Affects a small number of users."
+                - "suggested_labels": An array of 2-3 strings, relevant GitHub labels (e.g., ["bug", "UI", "login-flow"]).
+                - "potential_impact": A string, a brief sentence on the potential impact on users if the issue is a bug.
+                
+                Ensure the 'priority_score' includes both the score and a brief justification as a single string.
+                Ensure 'suggested_labels' is an array of strings.
+                
+                Start your response directly with the JSON object, do not include any other text or markdown formatting outside the JSON.`;
+
+                // Gemini API call
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = {
+                    contents: chatHistory,
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "summary": { "type": "STRING" },
+                                "type": { "type": "STRING", "enum": ["bug", "feature_request", "documentation", "question", "other"] },
+                                "priority_score": { "type": "STRING" },
+                                "suggested_labels": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "potential_impact": { "type": "STRING" }
+                            },
+                            "required": ["summary", "type", "priority_score", "suggested_labels", "potential_impact"]
+                        }
+                    }
+                };
+
+                const apiKey = ""; // Canvas will provide this at runtime
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const llmResponse = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const llmResult = await llmResponse.json();
+                console.log("Raw LLM response:", llmResult); // Log raw response for debugging
+
+                if (llmResult.candidates && llmResult.candidates.length > 0 &&
+                    llmResult.candidates[0].content && llmResult.candidates[0].content.parts &&
+                    llmResult.candidates[0].content.parts.length > 0) {
+                    const rawText = llmResult.candidates[0].content.parts[0].text;
+                    
+                    // Attempt to extract JSON from the raw text using a regex
+                    const jsonMatch = rawText.match(/```json\n([\s\S]*?)\n```/);
+                    let jsonString = rawText; // Default to raw text if no markdown code block
+                    if (jsonMatch && jsonMatch[1]) {
+                        jsonString = jsonMatch[1];
+                    }
+
+                    let parsedJson;
+                    try {
+                        parsedJson = JSON.parse(jsonString);
+                    } catch (parseError) {
+                        console.error("Failed to parse JSON string:", jsonString, parseError);
+                        throw new Error("AI response was not valid JSON. See console for details.");
+                    }
+
+                    // Validate the parsed JSON against expected keys
+                    const requiredKeys = ["summary", "type", "priority_score", "suggested_labels", "potential_impact"];
+                    const missingKeys = requiredKeys.filter(key => parsedJson[key] === undefined);
+
+                    if (missingKeys.length > 0) {
+                        throw new Error(`AI response is missing required keys: ${missingKeys.join(', ')}`);
+                    }
+
+                    rawJsonOutput = parsedJson; // Store raw JSON
+
+                    // Display results
+                    outputSummary.textContent = rawJsonOutput.summary;
+                    outputType.textContent = rawJsonOutput.type;
+                    outputPriorityScore.textContent = rawJsonOutput.priority_score;
+                    outputSuggestedLabels.textContent = Array.isArray(rawJsonOutput.suggested_labels) ? rawJsonOutput.suggested_labels.join(', ') : 'N/A';
+                    outputPotentialImpact.textContent = rawJsonOutput.potential_impact;
+                    outputSection.style.display = 'block';
+
+                } else {
+                    throw new Error('AI failed to generate any content or a valid structured response.');
+                }
+
+            } catch (error) {
+                console.error('Analysis error:', error);
+                displayError(`Error during analysis: ${error.message}`);
+                clearOutput(); // Clear any previous output on error
+            } finally {
+                loadingIndicator.style.display = 'none';
+                analyzeButton.disabled = false;
+            }
+        });
+
+        copyJsonButton.addEventListener('click', () => {
+            if (Object.keys(rawJsonOutput).length > 0) {
+                const jsonString = JSON.stringify(rawJsonOutput, null, 2);
+                const textarea = document.createElement('textarea');
+                textarea.value = jsonString;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showModal('JSON copied to clipboard!');
+            } else {
+                showModal('No JSON to copy yet. Please analyze an issue first.');
+            }
+        });
+    </script>
+</body>
+</html>
